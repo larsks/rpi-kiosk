@@ -1,0 +1,6 @@
+localhost
+  ansible_connection=local
+kiosk
+  ansible_host=/mnt
+  ansible_connection=nspawn
+  ansible_nspawn_extra_args='--bind /usr/bin/qemu-arm'
