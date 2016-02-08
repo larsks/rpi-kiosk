@@ -98,6 +98,12 @@
   tags:
     - mount
   tasks:
+    - name: check if {{mountpoint}} is mounted
+      command: >
+        mountpoint -q -- {{mountpoint}}
+      register: is_mounted
+      failed_when: is_mounted|success
+
     - block:
         - name: attach to loop device
           become: true
