@@ -1,0 +1,162 @@
+- hosts: localhost
+  gather_facts: false
+  tags:
+    - prep
+  tasks:
+    - name: create directory for image downloads
+      file:
+        path: ./data
+        state: directory
+
+    - name: fetch arch linux
+      get_url:
+        url: "{{arch_download_url}}"
+        dest: ./data/{{arch_version}}.tar.gz
+
+    - name: create disk image
+      command: truncate --size {{image_size}}  "{{tmpdir}}/archlinux.img"
+      args:
+        creates: "{{tmpdir}}/archlinux.img"
+
+    - name: partition disk image
+      shell: |
+        sfdisk {{tmpdir}}/archlinux.img < files/partitions
+
+    - name: resize root partition
+      shell: |
+        echo ', +' | sfdisk -N 2 {{tmpdir}}/archlinux.img
+
+    - block:
+        - name: attach to loop device
+          become: true
+          command: >
+            losetup -fP --show {{tmpdir}}/archlinux.img
+          register: lodev
+
+        # we have to use mkfs.vfat here rather than the `filesystem`
+        # module because the `filesystem` module (a) doesn't support
+        # vfat and (b) fails successfully (so, it simply skips this
+        # step with no errors).
+        - name: create boot filesystem
+          become: true
+          command: >
+            mkfs.vfat -n boot {{lodev.stdout}}p1
+
+        - name: create root filesystem
+          become: true
+          tags:
+            - mkfs
+          command: >
+            mkfs.ext4 -L root -F {{lodev.stdout}}p2
+
+        - name: fsck root filesystem
+          become: true
+          command: >
+            e2fsck -y -f {{lodev.stdout}}p2
+
+        - name: resize root filesystem
+          become: true
+          command: >
+            resize2fs {{lodev.stdout}}p2
+
+        - name: mount root filesystem
+          become: true
+          tags:
+            - mkfs
+          command: >
+            mount {{lodev.stdout}}p2 {{mountpoint}}
+
+        - name: ensure /boot exists
+          become: true
+          file:
+            path: "{{mountpoint}}/boot"
+            state: directory
+
+        - name: mount /boot filesystem
+          become: true
+          command: >
+            mount {{lodev.stdout}}p1 {{mountpoint}}/boot
+
+        - name: populate filesystem
+          become: true
+          shell: >
+            tar -C {{mountpoint}} -xzf- < data/{{arch_version}}.tar.gz 
+          args:
+            creates: "{{mountpoint}}/etc/arch-release"
+      rescue:
+        - name: unmount filesystem
+          command: >
+            umount {{item}}
+          with_items:
+            - "{{mountpoint}}/boot"
+            - "{{mountpoint}}"
+
+        - name: unconfigure loop device
+          command: >
+            losetup -d {{lodev.stdout}}
+
+        - fail:
+            msg: failed during prep stage
+
+- hosts: arch
+  gather_facts: false
+  tags:
+    - bootstrap
+  tasks:
+    - name: install python
+      raw: "{{item}}"
+      with_items:
+        - pacman -Sy
+        - pacman --noconfirm -S python2
+
+- hosts: arch
+  vars:
+    autologin_user: kiosk
+  tasks:
+    - name: upgrade all packages
+      pacman:
+        update_cache: true
+        upgrade: true
+
+    - name: install required packages
+      pacman:
+        name: "{{item}}"
+        state: installed
+      with_items:
+        - git
+        - nodm
+        - openbox
+        - unclutter
+        - surf
+        - xorg-server
+        - xf86-video-fbturbo-git
+        - raspberrypi-firmware-tools
+        - wpa_supplicant
+
+    - name: install ssh key
+      authorized_key:
+        user: root
+        key: https://github.com/larsks.keys
+
+    - name: create kiosk user
+      user:
+        name: "{{autologin_user}}"
+        comment: Kiosk User
+        shell: /bin/bash
+
+    - name: create entry for root filesystem
+      lineinfile:
+        dest: /etc/fstab
+        line: |
+          LABEL=root      /       ext4    defaults               0       0
+
+    - name: prevent boot hang when running under emulation
+      lineinfile:
+        dest: /etc/fstab
+        regexp: "^/dev/mmcblk0p1"
+        line: |
+          LABEL=boot      /boot   vfat    defaults,nofail        0       0
+
+    - include: network.yml
+    - include: gui.yml
+

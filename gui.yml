@@ -1,0 +1,29 @@
+- name: configure nodm
+  lineinfile:
+    dest: /etc/nodm.conf
+    regexp: "{{item.regexp}}"
+    line: "{{item.line}}"
+  with_items:
+    - regexp: "^NODM_USER="
+      line: "NODM_USER='{{autologin_user}}'"
+    - regexp: "^NODM_RESTART_SESSION="
+      line: "NODM_RESTART_SESSION=1"
+    - regexp: "^NODM_XSESSION="
+      line: "NODM_XSESSION='/home/{{autologin_user}}/.xinitrc'"
+    
+- name: enable nodm
+  command: >
+    systemctl enable nodm
+
+- name: install xinitrc
+  copy:
+    src: files/xinitrc
+    dest: /home/{{autologin_user}}/.xinitrc
+    owner: "{{autologin_user}}"
+    group: "{{autologin_user}}"
+    mode: "0755"
+
+- name: install openbox autostart configuration
+  template:
+    src: templates/openbox-autostart
+    dest: /etc/xdg/openbox/autostart

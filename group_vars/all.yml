@@ -1,0 +1,7 @@
+arch_version: ArchLinuxARM-rpi-2-latest
+arch_download_url: http://archlinuxarm.org/os/{{arch_version}}.tar.gz
+image_size: 3G
+tmpdir: /tmp
+mountpoint: /mnt
+kiosk_url: http://google.com/
+ssid: vankelsted
