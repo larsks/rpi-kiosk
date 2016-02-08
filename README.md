@@ -8,6 +8,20 @@ Ansible.
 [nspawn]: https://github.com/ansible/ansible/pull/14334
 [alarm]: http://archlinuxarm.org/
 
+## Configuration
+
+You will need to set the following variables, for which there are no
+defaults:
+
+- `ssid` -- the name of an open wireless network to which the kiosk
+  will connect.  Configuration should be more flexible and support
+  networks that require authentication.  Patches always welcome!
+
+- `ssh_public_key` -- a verbatim public ssh key, or a URL pointing to
+  a public ssh key.  See the [authorized_key module][] documentation.
+
+[authorized_key module]: http://docs.ansible.com/ansible/authorized_key_module.html
+
 ## Example
 
 The playbooks must be run as `root` due to their use of
