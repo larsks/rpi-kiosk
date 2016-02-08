@@ -125,6 +125,8 @@
         upgrade: true
 
     - name: install required packages
+      tags:
+        - packages
       pacman:
         name: "{{item}}"
         state: installed
@@ -134,10 +136,25 @@
         - openbox
         - unclutter
         - surf
+        - dmenu
         - xorg-server
         - xf86-video-fbturbo-git
         - raspberrypi-firmware-tools
         - wpa_supplicant
+
+    - name: install fonts
+      tags:
+        - fonts
+      pacman:
+        name: "{{item}}"
+        state: installed
+      with_items:
+        - ttf-bitstream-vera
+        - ttf-dejavu
+        - ttf-inconsolata
+        - ttf-linux-libertine
+        - ttf-droid
+        - ttf-liberation
 
     - name: install ssh key
       authorized_key:
@@ -168,4 +185,3 @@
 
     - include: network.yml
     - include: gui.yml
-
