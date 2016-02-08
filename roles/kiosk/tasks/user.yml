@@ -4,7 +4,6 @@
     key: "{{ssh_public_key}}"
   with_items:
     - root
-    - alarm
 
 - name: create kiosk user
   user:
