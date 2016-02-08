@@ -6,3 +6,4 @@ mountpoint: /mnt
 kiosk_url: http://google.com/
 ssid: vankelsted
 ssh_public_key: https://github.com/larsks.keys
+autologin_user: kiosk
