@@ -8,10 +8,6 @@ Ansible.
 [nspawn]: https://github.com/ansible/ansible/pull/14334
 [alarm]: http://archlinuxarm.org/
 
-## Configuration
-
-Look in `group_vars/all.yml` for things that can be configured.
-
 ## Example
 
 The playbooks must be run as `root` due to their use of
