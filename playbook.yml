@@ -14,23 +14,23 @@
         dest: ./data/{{arch_version}}.tar.gz
 
     - name: create disk image
-      command: truncate --size {{image_size}}  "{{tmpdir}}/archlinux.img"
+      command: truncate --size {{image_size}}  {{image_path}}
       args:
-        creates: "{{tmpdir}}/archlinux.img"
+        creates: "{{image_path}}"
 
     - name: partition disk image
       shell: |
-        sfdisk {{tmpdir}}/archlinux.img < files/partitions
+        sfdisk {{image_path}} < files/partitions
 
     - name: resize root partition
       shell: |
-        echo ', +' | sfdisk -N 2 {{tmpdir}}/archlinux.img
+        echo ', +' | sfdisk -N 2 {{image_path}}
 
     - block:
         - name: attach to loop device
           become: true
           command: >
-            losetup -fP --show {{tmpdir}}/archlinux.img
+            losetup -fP --show {{image_path}}
           register: lodev
 
         # we have to use mkfs.vfat here rather than the `filesystem`
@@ -103,11 +103,17 @@
   tags:
     - bootstrap
   tasks:
-    - name: install python
+    - name: check for python2
+      raw: test -f /usr/bin/python2
+      register: has_python2
+      ignore_errors: true
+
+    - name: install python2 for ansible
       raw: "{{item}}"
       with_items:
         - pacman -Sy
         - pacman --noconfirm -S python2
+      when: has_python2|failed
 
 - hosts: arch
   vars:
@@ -135,8 +141,11 @@
 
     - name: install ssh key
       authorized_key:
-        user: root
-        key: https://github.com/larsks.keys
+        user: "{{item}}"
+        key: "{{ssh_public_key}}"
+      with_items:
+        - root
+        - alarm
 
     - name: create kiosk user
       user:
