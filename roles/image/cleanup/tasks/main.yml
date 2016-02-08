@@ -22,6 +22,8 @@
     losetup -d {{item.name}}
   ignore_errors: true
   with_items: "{{lolist.loopdevices}}"
-  when: "item['back-file'] == image_path"
+  when: >
+    item['back-file'] == image_path or (
+      '(deleted)' in item['back-file'] and
+      item['back-file'][:-10] == image_path)
   become: true
-
