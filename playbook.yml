@@ -1,7 +1,7 @@
 - hosts: localhost
   gather_facts: false
   tags:
-    - prep
+    - fetch
   tasks:
     - name: create directory for image downloads
       file:
@@ -13,6 +13,12 @@
         url: "{{arch_download_url}}"
         dest: ./data/{{arch_version}}.tar.gz
 
+- name: create disk image
+  hosts: localhost
+  gather_facts: false
+  tags:
+    - create
+  tasks:
     - name: create disk image
       command: truncate --size {{image_size}}  {{image_path}}
       args:
@@ -21,10 +27,6 @@
     - name: partition disk image
       shell: |
         sfdisk {{image_path}} < files/partitions
-
-    - name: resize root partition
-      shell: |
-        echo ', +' | sfdisk -N 2 {{image_path}}
 
     - block:
         - name: attach to loop device
@@ -42,12 +44,38 @@
           command: >
             mkfs.vfat -n boot {{lodev.stdout}}p1
 
+        # now we're just being spiteful.
         - name: create root filesystem
           become: true
           tags:
             - mkfs
           command: >
             mkfs.ext4 -L root -F {{lodev.stdout}}p2
+      always:
+        - name: unconfigure loop device
+          command: >
+            losetup -d {{lodev.stdout}}
+
+- name: resize image and root fs
+  hosts: localhost
+  gather_facts: false
+  tags:
+    - resize
+  tasks:
+    # trying to *shrink* an image here will lead to disappointment.
+    - name: resize disk image
+      command: truncate --size {{image_size}}  {{image_path}}
+
+    - name: resize root partition
+      shell: |
+        echo ', +' | sfdisk -N 2 {{image_path}}
+
+    - block:
+        - name: attach to loop device
+          become: true
+          command: >
+            losetup -fP --show {{image_path}}
+          register: lodev
 
         - name: fsck root filesystem
           become: true
@@ -58,6 +86,24 @@
           become: true
           command: >
             resize2fs {{lodev.stdout}}p2
+      always:
+        - name: unconfigure loop device
+          command: >
+            losetup -d {{lodev.stdout}}
+
+
+- name: mount image filesystems
+  hosts: localhost
+  gather_facts: false
+  tags:
+    - mount
+  tasks:
+    - block:
+        - name: attach to loop device
+          become: true
+          command: >
+            losetup -fP --show {{image_path}}
+          register: lodev
 
         - name: mount root filesystem
           become: true
@@ -76,13 +122,6 @@
           become: true
           command: >
             mount {{lodev.stdout}}p1 {{mountpoint}}/boot
-
-        - name: populate filesystem
-          become: true
-          shell: >
-            tar -C {{mountpoint}} -xzf- < data/{{arch_version}}.tar.gz 
-          args:
-            creates: "{{mountpoint}}/etc/arch-release"
       rescue:
         - name: unmount filesystem
           command: >
@@ -90,18 +129,43 @@
           with_items:
             - "{{mountpoint}}/boot"
             - "{{mountpoint}}"
+          ignore_errors: true
 
         - name: unconfigure loop device
           command: >
             losetup -d {{lodev.stdout}}
+          ignore_errors: true
 
         - fail:
-            msg: failed during prep stage
+            msg: Failed to mount image
 
-- hosts: arch
+- name: provision filesystem
+  hosts: localhost
+  gather_facts: false
+  tags:
+    - populate
+  tasks:
+    - name: verify that {{mountpoint}} is mounted
+      command: >
+        mountpoint -q -- {{mountpoint}}
+
+    - name: populate filesystem
+      become: true
+      shell: >
+        tar -C {{mountpoint}} -xzf- < data/{{arch_version}}.tar.gz 
+      args:
+        creates: "{{mountpoint}}/etc/arch-release"
+
+# this play ensures that a python2 interpreter is available
+# in the target.  It's tagged `install` because we need to make
+# sure we run this whenever we run the install play, because 
+# otherwise the latter play will fail.
+- name: bootstrap image for ansible
+  hosts: arch
   gather_facts: false
   tags:
     - bootstrap
+    - install
   tasks:
     - name: check for python2
       raw: test -f /usr/bin/python2
@@ -115,73 +179,14 @@
         - pacman --noconfirm -S python2
       when: has_python2|failed
 
-- hosts: arch
-  vars:
-    autologin_user: kiosk
+- name: configure image
+  hosts: arch
+  gather_facts: false
+  tags:
+    - install
   tasks:
-    - name: upgrade all packages
-      pacman:
-        update_cache: true
-        upgrade: true
-
-    - name: install required packages
-      tags:
-        - packages
-      pacman:
-        name: "{{item}}"
-        state: installed
-      with_items:
-        - git
-        - nodm
-        - openbox
-        - unclutter
-        - surf
-        - dmenu
-        - xorg-server
-        - xf86-video-fbturbo-git
-        - raspberrypi-firmware-tools
-        - wpa_supplicant
-
-    - name: install fonts
-      tags:
-        - fonts
-      pacman:
-        name: "{{item}}"
-        state: installed
-      with_items:
-        - ttf-bitstream-vera
-        - ttf-dejavu
-        - ttf-inconsolata
-        - ttf-linux-libertine
-        - ttf-droid
-        - ttf-liberation
-
-    - name: install ssh key
-      authorized_key:
-        user: "{{item}}"
-        key: "{{ssh_public_key}}"
-      with_items:
-        - root
-        - alarm
-
-    - name: create kiosk user
-      user:
-        name: "{{autologin_user}}"
-        comment: Kiosk User
-        shell: /bin/bash
-
-    - name: create entry for root filesystem
-      lineinfile:
-        dest: /etc/fstab
-        line: |
-          LABEL=root      /       ext4    defaults               0       0
-
-    - name: prevent boot hang when running under emulation
-      lineinfile:
-        dest: /etc/fstab
-        regexp: "^/dev/mmcblk0p1"
-        line: |
-          LABEL=boot      /boot   vfat    defaults,nofail        0       0
-
+    - include: packages.yml
+    - include: user.yml
+    - include: fstab.yml
     - include: network.yml
     - include: gui.yml

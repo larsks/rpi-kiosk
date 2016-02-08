@@ -1,0 +1,14 @@
+- name: create entry for root filesystem
+  lineinfile:
+    dest: /etc/fstab
+    line: |
+      LABEL=root      /       ext4    defaults               0       0
+
+#  using LABEL here avoids hanging at boot if the root device is
+#  not actually /dev/mmcblk0 (e.g., when running under qemu).
+- name: replace device path for /boot with LABEL
+  lineinfile:
+    dest: /etc/fstab
+    regexp: "^/dev/mmcblk0p1"
+    line: |
+      LABEL=boot      /boot   vfat    defaults               0       0

@@ -1,0 +1,15 @@
+- name: install ssh key
+  authorized_key:
+    user: "{{item}}"
+    key: "{{ssh_public_key}}"
+  with_items:
+    - root
+    - alarm
+
+- name: create kiosk user
+  user:
+    name: "{{autologin_user}}"
+    comment: Kiosk User
+    shell: /bin/bash
+
+
