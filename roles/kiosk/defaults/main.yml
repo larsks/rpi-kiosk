@@ -1,0 +1,12 @@
+autologin_user: kiosk
+arch_default_user: alarm
+root_password: "!!"
+kiosk_url: http://google.com/
+kiosk_fonts:
+  - ttf-bitstream-vera
+  - ttf-dejavu
+  - ttf-inconsolata
+  - ttf-linux-libertine
+  - ttf-droid
+  - ttf-liberation
+xf86_video_driver: xf86-video-fbturbo-git

@@ -1,0 +1,31 @@
+# trying to *shrink* an image here will lead to disappointment.
+- name: resize disk image
+  command: truncate --size {{image_size}}  {{image_path}}
+
+- name: resize root partition
+  shell: |
+    echo ', +' | sfdisk -N 2 {{image_path}}
+
+- block:
+    - name: attach to loop device
+      become: true
+      command: >
+        losetup -fP --show {{image_path}}
+      register: lodev
+
+    - name: fsck root filesystem
+      become: true
+      command: >
+        e2fsck -y -f {{lodev.stdout}}p2
+
+    - name: resize root filesystem
+      become: true
+      command: >
+        resize2fs {{lodev.stdout}}p2
+  always:
+    - name: unconfigure loop device
+      become: true
+      command: >
+        losetup -d {{lodev.stdout}}
+
+

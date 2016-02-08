@@ -1,0 +1,4 @@
+image_path: /tmp/{{arch_version}}.img
+image_size: 2G
+mountpoint: /mnt
+arch_version: ArchLinuxARM-rpi-2-latest

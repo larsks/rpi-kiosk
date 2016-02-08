@@ -1,0 +1,15 @@
+- name: check for python2
+  raw: test -f /usr/bin/python2
+  register: has_python2
+  ignore_errors: true
+
+- name: install python2 for ansible
+  raw: "{{item}}"
+  with_items:
+    - pacman -Sy
+    - pacman --noconfirm -S python2
+  when: has_python2|failed
+
+- name: set python interpreter path
+  set_fact:
+    ansible_python_interpreter: /usr/bin/python2

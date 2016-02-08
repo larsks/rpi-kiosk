@@ -1,234 +1,36 @@
 - hosts: localhost
   gather_facts: false
   tags:
-    - fetch
-  tasks:
-    - name: create directory for image downloads
-      file:
-        path: ./data
-        state: directory
+    - image
+  roles:
+    - role: image/fetch
+      tags:
+        - fetch
+    - role: image/create
+      tags:
+        - create
+    - role: image/resize
+      tags:
+        - resize
+    - role: image/mount
+      tags:
+        - mount
+    - role: image/install
+      tags:
+        - install
 
-    - name: fetch arch linux
-      get_url:
-        url: "{{arch_download_url}}"
-        dest: ./data/{{arch_version}}.tar.gz
-
-- name: create disk image
-  hosts: localhost
-  gather_facts: false
-  tags:
-    - create
-  tasks:
-    - name: create disk image
-      command: truncate --size {{image_size}}  {{image_path}}
-      args:
-        creates: "{{image_path}}"
-
-    - name: partition disk image
-      shell: |
-        sfdisk {{image_path}} < files/partitions
-
-    - block:
-        - name: attach to loop device
-          become: true
-          command: >
-            losetup -fP --show {{image_path}}
-          register: lodev
-
-        # we have to use mkfs.vfat here rather than the `filesystem`
-        # module because the `filesystem` module (a) doesn't support
-        # vfat and (b) fails successfully (so, it simply skips this
-        # step with no errors).
-        - name: create boot filesystem
-          become: true
-          command: >
-            mkfs.vfat -n boot {{lodev.stdout}}p1
-
-        # now we're just being spiteful.
-        - name: create root filesystem
-          become: true
-          tags:
-            - mkfs
-          command: >
-            mkfs.ext4 -L root -F {{lodev.stdout}}p2
-      always:
-        - name: unconfigure loop device
-          become: true
-          command: >
-            losetup -d {{lodev.stdout}}
-
-- name: resize image and root fs
-  hosts: localhost
-  gather_facts: false
-  tags:
-    - resize
-  tasks:
-    # trying to *shrink* an image here will lead to disappointment.
-    - name: resize disk image
-      command: truncate --size {{image_size}}  {{image_path}}
-
-    - name: resize root partition
-      shell: |
-        echo ', +' | sfdisk -N 2 {{image_path}}
-
-    - block:
-        - name: attach to loop device
-          become: true
-          command: >
-            losetup -fP --show {{image_path}}
-          register: lodev
-
-        - name: fsck root filesystem
-          become: true
-          command: >
-            e2fsck -y -f {{lodev.stdout}}p2
-
-        - name: resize root filesystem
-          become: true
-          command: >
-            resize2fs {{lodev.stdout}}p2
-      always:
-        - name: unconfigure loop device
-          become: true
-          command: >
-            losetup -d {{lodev.stdout}}
-
-
-- name: mount image filesystems
-  hosts: localhost
-  gather_facts: false
-  tags:
-    - mount
-  tasks:
-    - name: check if {{mountpoint}} is mounted
-      command: >
-        mountpoint -q -- {{mountpoint}}
-      register: is_mounted
-      failed_when: is_mounted|success
-
-    - block:
-        - name: attach to loop device
-          become: true
-          command: >
-            losetup -fP --show {{image_path}}
-          register: lodev
-
-        - name: mount root filesystem
-          become: true
-          tags:
-            - mkfs
-          command: >
-            mount {{lodev.stdout}}p2 {{mountpoint}}
-
-        - name: ensure /boot exists
-          become: true
-          file:
-            path: "{{mountpoint}}/boot"
-            state: directory
-
-        - name: mount /boot filesystem
-          become: true
-          command: >
-            mount {{lodev.stdout}}p1 {{mountpoint}}/boot
-      rescue:
-        - name: unmount filesystem
-          become: true
-          command: >
-            umount {{item}}
-          with_items:
-            - "{{mountpoint}}/boot"
-            - "{{mountpoint}}"
-          ignore_errors: true
-
-        - name: unconfigure loop device
-          become: true
-          command: >
-            losetup -d {{lodev.stdout}}
-          ignore_errors: true
-
-        - fail:
-            msg: Failed to mount image
-
-- name: provision filesystem
-  hosts: localhost
-  gather_facts: false
-  tags:
-    - populate
-  tasks:
-    - name: verify that {{mountpoint}} is mounted
-      command: >
-        mountpoint -q -- {{mountpoint}}
-
-    - name: populate filesystem
-      become: true
-      shell: >
-        tar -C {{mountpoint}} -xzf- < data/{{arch_version}}.tar.gz 
-      args:
-        creates: "{{mountpoint}}/etc/arch-release"
-
-# this play ensures that a python2 interpreter is available
-# in the target.  It's tagged `install` because we need to make
-# sure we run this whenever we run the install play, because 
-# otherwise the latter play will fail.
 - name: bootstrap image for ansible
-  hosts: arch
+  hosts: kiosk
   gather_facts: false
   tags:
+    - configure
+  roles:
     - bootstrap
-    - install
-  tasks:
-    - name: check for python2
-      raw: test -f /usr/bin/python2
-      register: has_python2
-      ignore_errors: true
-
-    - name: install python2 for ansible
-      raw: "{{item}}"
-      with_items:
-        - pacman -Sy
-        - pacman --noconfirm -S python2
-      when: has_python2|failed
-
-- name: configure image
-  hosts: arch
-  gather_facts: false
-  tags:
-    - install
-  tasks:
-    - include: packages.yml
-    - include: user.yml
-    - include: fstab.yml
-    - include: network.yml
-    - include: gui.yml
+    - kiosk
 
 - name: cleanup
   hosts: localhost
   tags:
     - cleanup
-  tasks:
-    - name: unmount filesystem
-      command: >
-        umount {{item}}
-      with_items:
-        - "{{mountpoint}}/boot"
-        - "{{mountpoint}}"
-      ignore_errors: true
-      become: true
-
-    - name: query loop devices
-      command: >
-        losetup -l --json
-      register: lolist_json
-      become: true
-
-    - name: set lolist fact
-      set_fact:
-        lolist: "{{lolist_json.stdout|from_json}}"
-
-    - name: unconfigure loop device
-      command: >
-        losetup -d {{item.name}}
-      ignore_errors: true
-      with_items: "{{lolist.loopdevices}}"
-      when: "item['back-file'] == image_path"
-      become: true
+  roles:
+    - image/cleanup

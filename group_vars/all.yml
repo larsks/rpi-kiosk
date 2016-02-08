@@ -1,9 +1,2 @@
-arch_version: ArchLinuxARM-rpi-2-latest
-arch_download_url: http://archlinuxarm.org/os/{{arch_version}}.tar.gz
-image_size: 2G
-image_path: /tmp/{{arch_version}}.img
-mountpoint: /mnt
-kiosk_url: http://google.com/
 ssid: vankelsted
 ssh_public_key: https://github.com/larsks.keys
-autologin_user: kiosk

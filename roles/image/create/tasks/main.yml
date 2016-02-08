@@ -1,0 +1,39 @@
+- name: create disk image
+  command: truncate --size {{image_size}}  {{image_path}}
+  args:
+    creates: "{{image_path}}"
+
+- name: partition disk image
+  shell: |
+    sfdisk {{image_path}} < files/partitions
+
+- block:
+    - name: attach to loop device
+      become: true
+      command: >
+        losetup -fP --show {{image_path}}
+      register: lodev
+
+    # we have to use mkfs.vfat here rather than the `filesystem`
+    # module because the `filesystem` module (a) doesn't support
+    # vfat and (b) fails successfully (so, it simply skips this
+    # step with no errors).
+    - name: create boot filesystem
+      become: true
+      command: >
+        mkfs.vfat -n boot {{lodev.stdout}}p1
+
+    # now we're just being spiteful.
+    - name: create root filesystem
+      become: true
+      tags:
+        - mkfs
+      command: >
+        mkfs.ext4 -L root -F {{lodev.stdout}}p2
+  always:
+    - name: unconfigure loop device
+      become: true
+      command: >
+        losetup -d {{lodev.stdout}}
+
+

@@ -1,0 +1,12 @@
+- name: verify that {{mountpoint}} is mounted
+  command: >
+    mountpoint -q -- {{mountpoint}}
+
+- name: populate filesystem
+  become: true
+  shell: >
+    tar -C {{mountpoint}} -xzf- < data/{{arch_version}}.tar.gz 
+  args:
+    creates: "{{mountpoint}}/etc/arch-release"
+
+

@@ -12,4 +12,12 @@
     comment: Kiosk User
     shell: /bin/bash
 
+- name: delete default user
+  user:
+    name: "{{arch_default_user}}"
+    state: absent
 
+- name: set root password
+  user:
+    name: root
+    password: "{{root_password}}"

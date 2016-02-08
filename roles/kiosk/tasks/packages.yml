@@ -17,7 +17,7 @@
     - surf
     - dmenu
     - xorg-server
-    - xf86-video-fbturbo-git
+    - "{{xf86_video_driver}}"
     - raspberrypi-firmware-tools
     - wpa_supplicant
 
@@ -27,12 +27,4 @@
   pacman:
     name: "{{item}}"
     state: installed
-  with_items:
-    - ttf-bitstream-vera
-    - ttf-dejavu
-    - ttf-inconsolata
-    - ttf-linux-libertine
-    - ttf-droid
-    - ttf-liberation
-
-
+  with_items: "{{kiosk_fonts}}"

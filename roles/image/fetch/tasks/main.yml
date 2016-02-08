@@ -1,0 +1,10 @@
+- name: create directory for image downloads
+  file:
+    path: ./data
+    state: directory
+
+- name: fetch arch linux
+  get_url:
+    url: "{{arch_download_url}}"
+    dest: ./data/{{arch_version}}.tar.gz
+

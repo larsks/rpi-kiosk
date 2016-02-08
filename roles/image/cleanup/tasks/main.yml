@@ -1,0 +1,27 @@
+- name: unmount filesystem
+  command: >
+    umount {{item}}
+  with_items:
+    - "{{mountpoint}}/boot"
+    - "{{mountpoint}}"
+  ignore_errors: true
+  become: true
+
+- name: query loop devices
+  command: >
+    losetup -l --json
+  register: lolist_json
+  become: true
+
+- name: set lolist fact
+  set_fact:
+    lolist: "{{lolist_json.stdout|from_json}}"
+
+- name: unconfigure loop device
+  command: >
+    losetup -d {{item.name}}
+  ignore_errors: true
+  with_items: "{{lolist.loopdevices}}"
+  when: "item['back-file'] == image_path"
+  become: true
+

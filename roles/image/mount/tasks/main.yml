@@ -1,0 +1,48 @@
+- name: check if {{mountpoint}} is mounted
+  command: >
+    mountpoint -q -- {{mountpoint}}
+  register: is_mounted
+  failed_when: is_mounted.rc == 0
+  ignore_errors: true
+
+- when: is_mounted.rc != 0
+  become: true
+  block:
+    - name: attach to loop device
+      command: >
+        losetup -fP --show {{image_path}}
+      register: lodev
+
+    - name: mount root filesystem
+      tags:
+        - mkfs
+      command: >
+        mount {{lodev.stdout}}p2 {{mountpoint}}
+
+    - name: ensure /boot exists
+      file:
+        path: "{{mountpoint}}/boot"
+        state: directory
+
+    - name: mount /boot filesystem
+      command: >
+        mount {{lodev.stdout}}p1 {{mountpoint}}/boot
+  rescue:
+    - name: unmount filesystem
+      command: >
+        umount {{item}}
+      with_items:
+        - "{{mountpoint}}/boot"
+        - "{{mountpoint}}"
+      ignore_errors: true
+
+    - name: unconfigure loop device
+      become: true
+      command: >
+        losetup -d {{lodev.stdout}}
+      ignore_errors: true
+
+    - fail:
+        msg: Failed to mount image
+
+
