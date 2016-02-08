@@ -1,3 +1,11 @@
+# RASPBERRY PI KIOSK USING ARCH LINUX
+# Lars Kellogg-Stedman <lars@oddbit.com>
+# http://github.com/larsks/rpi-kiosk/
+
+# Download Arch Linux, create a disk image file, create the necessary
+# partition layout, create filesystems, mount them, and populate
+# them from the Arch Linux tarball.  At the end of this play you will
+# have a bootable image with a default Arch configuration.
 - hosts: localhost
   gather_facts: false
   tags:
@@ -19,8 +27,8 @@
       tags:
         - install
 
-- name: bootstrap image for ansible
-  hosts: kiosk
+# Perform all the image configuration tasks.
+- hosts: kiosk
   gather_facts: false
   tags:
     - configure
@@ -28,6 +36,8 @@
     - bootstrap
     - kiosk
 
+# Ensure that everything is unmounted and the loop device is
+# unconfigured.
 - name: cleanup
   hosts: localhost
   tags:

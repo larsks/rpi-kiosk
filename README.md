@@ -13,4 +13,13 @@ Ansible.
 The playbooks must be run as `root` due to their use of
 `systemd-nspawn`:
 
-    sudo ansible-playbook playbook.yml -e image_path=/tmp/kiosk.img
+    sudo ansible-playbook playbook.yml \
+      -e image_path=/tmp/kiosk.img \
+      -e kiosk_url=http://myportal.example.com/
+
+And then write the image to your SD card:
+
+    sudo dd if=/tmp/kiosk.img of=/dev/mmcblk0 bs=4M
+
+And then stick in in your Pi and boot.
+
