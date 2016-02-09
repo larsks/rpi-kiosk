@@ -13,9 +13,9 @@ Ansible.
 You will need to set the following variables, for which there are no
 defaults:
 
-- `ssid` -- the name of an open wireless network to which the kiosk
-  will connect.  Configuration should be more flexible and support
-  networks that require authentication.  Patches always welcome!
+- `wifi_ssid` -- the name of an open wireless network to which the kiosk
+  will connect.  There are other `wifi_*` configuration variables; see
+  `roles/kiosk/templates/wpa_supplicant.conf` for details.
 
 - `ssh_public_key` -- a verbatim public ssh key, or a URL pointing to
   a public ssh key.  See the [authorized_key module][] documentation.
