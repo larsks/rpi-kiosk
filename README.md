@@ -29,7 +29,9 @@ The playbooks must be run as `root` due to their use of
 
     sudo ansible-playbook playbook.yml \
       -e image_path=/tmp/kiosk.img \
-      -e kiosk_url=http://myportal.example.com/
+      -e kiosk_url=http://myportal.example.com/ \
+      -e ssh_public_key=http://github.com/myname.keys \
+      -e wifi_ssid=myhouse
 
 And then write the image to your SD card:
 
